@@ -39,3 +39,11 @@ errors.txt
 *.png
 *.jpg
 *.jpeg
+
+# Testing
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+*.cover
