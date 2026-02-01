@@ -18,7 +18,7 @@ from transcribe_memos import (
 class TestTranscriptionOpenAI:
     """Test OpenAI transcription."""
 
-    @patch('transcribe_memos.OpenAI')
+    @patch('openai.OpenAI')
     @patch('transcribe_memos.validate_audio_file')
     def test_transcribe_openai_success(self, mock_validate, mock_openai_class, sample_audio_file, monkeypatch, mock_config):
         """Test successful OpenAI transcription."""
@@ -58,7 +58,7 @@ class TestTranscriptionOpenAI:
         with pytest.raises(ValueError, match="Corrupted audio file"):
             transcribe_openai(str(corrupted_audio_file))
 
-    @patch('transcribe_memos.OpenAI')
+    @patch('openai.OpenAI')
     @patch('transcribe_memos.validate_audio_file')
     @patch('transcribe_memos.split_audio_file')
     def test_transcribe_openai_strips_whitespace(self, mock_split, mock_validate, mock_openai_class, sample_audio_file, monkeypatch, mock_config):
@@ -142,7 +142,7 @@ class TestFileSplitting:
 class TestTranscriptionIntegration:
     """Integration tests for transcription workflow."""
 
-    @patch('transcribe_memos.OpenAI')
+    @patch('openai.OpenAI')
     @patch('transcribe_memos.validate_audio_file')
     @patch('transcribe_memos.split_audio_file')
     def test_full_transcription_workflow(self, mock_split, mock_validate, mock_openai_class, sample_audio_file, monkeypatch, mock_config):
