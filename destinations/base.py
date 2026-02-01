@@ -47,11 +47,12 @@ class TranscriptDestination(ABC):
         pass
 
     @abstractmethod
-    def prepare_for_memo(self, memo_datetime: Any) -> str:
+    def prepare_for_memo(self, memo_datetime: Any, filepath: str = None) -> str:
         """Prepare destination for a new memo (get/create document, file, etc).
 
         Args:
             memo_datetime: Datetime object representing when the memo was recorded
+            filepath: Optional path to audio file for metadata extraction
 
         Returns:
             session_id: Identifier for this destination session (e.g., "doc_id:tab_id",
@@ -95,7 +96,7 @@ class TranscriptDestination(ABC):
         """
         pass
 
-    def get_cache_key(self, memo_datetime: Any) -> str:
+    def get_cache_key(self, memo_datetime: Any, filepath: str = None) -> str:
         """Get cache key for session caching.
 
         Override this method if your destination uses organization other than daily.
@@ -103,8 +104,11 @@ class TranscriptDestination(ABC):
 
         Args:
             memo_datetime: Datetime object representing when the memo was recorded
+            filepath: Optional path to audio file for metadata extraction
 
         Returns:
             Cache key string (default: YYYY-MM-DD)
         """
-        return memo_datetime.strftime("%Y-%m-%d")
+        if hasattr(memo_datetime, 'strftime'):
+            return memo_datetime.strftime("%Y-%m-%d")
+        return str(memo_datetime)

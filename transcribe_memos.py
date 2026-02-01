@@ -459,9 +459,9 @@ def main():
 
             # Prepare destination for this memo
             # Use destination-specific cache key (handles daily vs weekly organization)
-            cache_key = destination.get_cache_key(memo_datetime)
+            cache_key = destination.get_cache_key(memo_datetime, filepath)
             if cache_key not in session_cache:
-                session_id = destination.prepare_for_memo(memo_datetime)
+                session_id = destination.prepare_for_memo(memo_datetime, filepath)
                 session_cache[cache_key] = session_id
             else:
                 session_id = session_cache[cache_key]

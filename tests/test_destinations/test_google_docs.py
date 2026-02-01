@@ -137,7 +137,7 @@ class TestDocumentCreation:
         google_dest.service = mock_service
         memo_date = datetime(2025, 1, 30)
 
-        doc_id = google_dest._get_or_create_doc(memo_date)
+        doc_id = google_dest._get_or_create_doc(memo_date, {})
 
         assert doc_id == "test-doc-id-123"
         mock_service.documents().create.assert_called_once()
@@ -146,14 +146,14 @@ class TestDocumentCreation:
         """Test using existing document for the week."""
         google_dest.service = mock_service
 
-        # Create existing mapping
+        # Create existing mapping - use new format
         docs_path = config_dir / "docs_by_week.json"
-        docs_path.write_text(json.dumps({"2025-01-27": "existing-doc-id"}))
+        docs_path.write_text(json.dumps({"groups": {"2025-01-27": "existing-doc-id"}}))
 
         # Date in the same week
         memo_date = datetime(2025, 1, 30)
 
-        doc_id = google_dest._get_or_create_doc(memo_date)
+        doc_id = google_dest._get_or_create_doc(memo_date, {})
 
         assert doc_id == "existing-doc-id"
         mock_service.documents().create.assert_not_called()
@@ -168,7 +168,7 @@ class TestDocumentCreation:
         dest.service = mock_service
 
         memo_date = datetime(2025, 1, 30)
-        doc_id = dest._get_or_create_doc(memo_date)
+        doc_id = dest._get_or_create_doc(memo_date, {})
 
         assert doc_id == "override-doc-id"
         mock_service.documents().create.assert_not_called()
@@ -183,16 +183,15 @@ class TestDocumentCreation:
         dest.service = mock_service
 
         memo_date = datetime(2025, 1, 30)
-        doc_id = dest._get_or_create_doc(memo_date)
+        doc_id = dest._get_or_create_doc(memo_date, {})
 
         assert doc_id == "test-doc-id-123"
 
-        # Check saved mapping uses structured format
+        # Check saved mapping uses new format
         docs_path = config_dir / "docs_by_week.json"
         with open(docs_path) as f:
             data = json.load(f)
-        assert data["mode"] == "single"
-        assert data["single"] == "test-doc-id-123"
+        assert data["groups"]["single"] == "test-doc-id-123"
 
 
 @pytest.mark.unit
@@ -213,7 +212,7 @@ class TestTabOperations:
         google_dest.service = mock_service
         memo_date = datetime(2025, 1, 30)
 
-        tab_id = google_dest._get_or_create_tab_for_date("test-doc-id", memo_date)
+        tab_id = google_dest._get_or_create_tab("test-doc-id", memo_date, {})
 
         assert tab_id == "tab-1"
 
@@ -227,7 +226,7 @@ class TestTabOperations:
         mock_service.documents().get.return_value = mock_get
 
         memo_date = datetime(2025, 2, 1)
-        tab_id = google_dest._get_or_create_tab_for_date("test-doc-id", memo_date)
+        tab_id = google_dest._get_or_create_tab("test-doc-id", memo_date, {})
 
         assert tab_id == "new-tab-id"
         # Should have called batchUpdate twice (create tab + add header)

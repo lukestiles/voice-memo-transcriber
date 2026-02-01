@@ -67,11 +67,12 @@ class ObsidianDestination(TranscriptDestination):
         # Create folder if it doesn't exist
         self.folder_path.mkdir(parents=True, exist_ok=True)
 
-    def prepare_for_memo(self, memo_datetime: datetime) -> str:
+    def prepare_for_memo(self, memo_datetime: datetime, filepath: str = None) -> str:
         """Prepare markdown file for the memo (daily or weekly).
 
         Args:
             memo_datetime: When the memo was recorded
+            filepath: Optional path to audio file (not used by Obsidian)
 
         Returns:
             File path to the markdown file
@@ -144,7 +145,7 @@ class ObsidianDestination(TranscriptDestination):
             print(f"\n📝 Transcripts saved to Obsidian vault:")
             print(f"  {self.folder_path}")
 
-    def get_cache_key(self, memo_datetime: datetime) -> str:
+    def get_cache_key(self, memo_datetime: datetime, filepath: str = None) -> str:
         """Get cache key based on organization mode.
 
         For weekly organization, return Monday date.
@@ -152,6 +153,7 @@ class ObsidianDestination(TranscriptDestination):
 
         Args:
             memo_datetime: Datetime object representing when the memo was recorded
+            filepath: Optional path to audio file (not used by Obsidian)
 
         Returns:
             Cache key string
