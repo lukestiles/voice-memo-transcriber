@@ -16,11 +16,8 @@ from pathlib import Path
 from datetime import datetime
 from typing import Optional
 
-# Google Docs
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from google.auth.transport.requests import Request
-from googleapiclient.discovery import build
+# Destination abstraction
+from destinations import create_destination
 
 # =============================================================================
 # CONFIGURATION - Edit these settings
@@ -29,39 +26,103 @@ from googleapiclient.discovery import build
 CONFIG = {
     # Transcription backend: "local" (Whisper) or "openai" (API)
     "backend": "openai",
-    
+
     # Whisper model for local transcription: "tiny", "base", "small", "medium", "large"
     # Larger = more accurate but slower
     "whisper_model": "small",
-    
+
     # OpenAI API key (only needed if backend is "openai")
     # Set via environment variable OPENAI_API_KEY or paste here
     "openai_api_key": os.environ.get("OPENAI_API_KEY", ""),
-    
-    # Google Doc ID - will be set automatically on first run or paste existing doc ID
-    "google_doc_id": "",
-    
-    # Title for new Google Doc (if creating new)
-    "google_doc_title": "Voice Memo Transcripts",
-    
-    # Tab naming format (Python strftime format)
-    # Examples:
-    #   "%B %d, %Y"  -> "January 15, 2025"
-    #   "%Y-%m-%d"   -> "2025-01-15"
-    #   "%m/%d/%Y"   -> "01/15/2025"
-    "tab_date_format": "%B %d, %Y",
-    
+
     # Voice Memos location (default macOS location)
     "voice_memos_path": os.path.expanduser(
         "~/Library/Group Containers/group.com.apple.VoiceMemos.shared/Recordings/"
     ),
-    
+
     # Where to store app data (processed files list, config)
     "data_dir": os.path.expanduser("~/.voice-memo-transcriber"),
+
+    # Destination configuration
+    "destination": {
+        "type": "google_docs",  # or "obsidian"
+
+        # Google Docs settings (used when type is "google_docs")
+        "google_docs": {
+            "doc_id": "",  # Specific doc ID, or empty for weekly docs
+            "doc_title": "Voice Memo Transcripts",
+            "tab_date_format": "%B %d, %Y",
+            "use_weekly_docs": True,  # Create one doc per week
+        },
+
+        # Obsidian settings (used when type is "obsidian")
+        "obsidian": {
+            "vault_path": "~/Documents/Obsidian/MyVault",
+            "folder": "Voice Memos",
+            "organize_by": "daily",  # or "weekly"
+            "date_format": "%Y-%m-%d",
+            "include_frontmatter": True,
+            "include_tags": True,
+            "include_metadata": True,
+        },
+    },
 }
 
-# Google Docs API scope
-SCOPES = ["https://www.googleapis.com/auth/documents"]
+
+def migrate_legacy_config(config: dict) -> dict:
+    """Migrate legacy flat config to nested destination structure.
+
+    Args:
+        config: Configuration dict (may be legacy or new format)
+
+    Returns:
+        Migrated config dict with destination structure
+    """
+    # Check if already using new format
+    if "destination" in config:
+        return config
+
+    # Legacy format detected - migrate to Google Docs destination
+    print("⚠️  Legacy config detected - migrating to new format...")
+
+    migrated = config.copy()
+
+    # Create destination config
+    migrated["destination"] = {
+        "type": "google_docs",
+        "google_docs": {},
+        "obsidian": {
+            "vault_path": "~/Documents/Obsidian/MyVault",
+            "folder": "Voice Memos",
+            "organize_by": "daily",
+            "date_format": "%Y-%m-%d",
+            "include_frontmatter": True,
+            "include_tags": True,
+            "include_metadata": True,
+        },
+    }
+
+    # Migrate Google Docs settings (only if non-empty)
+    if config.get("google_doc_id"):
+        migrated["destination"]["google_docs"]["doc_id"] = config["google_doc_id"]
+
+    if config.get("google_doc_title"):
+        migrated["destination"]["google_docs"]["doc_title"] = config[
+            "google_doc_title"
+        ]
+
+    if config.get("tab_date_format"):
+        migrated["destination"]["google_docs"]["tab_date_format"] = config[
+            "tab_date_format"
+        ]
+
+    # Default to weekly docs for backward compatibility
+    migrated["destination"]["google_docs"]["use_weekly_docs"] = True
+
+    print("✓ Config migrated to Google Docs destination")
+
+    return migrated
+
 
 # =============================================================================
 # TRANSCRIPTION BACKENDS
@@ -233,256 +294,26 @@ def transcribe(audio_path: str) -> str:
         raise ValueError(f"Unknown backend: {backend}")
 
 # =============================================================================
-# GOOGLE DOCS INTEGRATION
+# NOTE: Google Docs integration moved to destinations/google_docs.py
 # =============================================================================
 
-def get_google_credentials() -> Credentials:
-    """Get or refresh Google API credentials."""
-    data_dir = Path(CONFIG["data_dir"])
-    token_path = data_dir / "token.json"
-    creds_path = data_dir / "credentials.json"
-    
-    creds = None
-    
-    # Load existing token
-    if token_path.exists():
-        creds = Credentials.from_authorized_user_file(str(token_path), SCOPES)
-    
-    # Refresh or get new credentials
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            if not creds_path.exists():
-                raise FileNotFoundError(
-                    f"Google credentials not found at {creds_path}\n"
-                    "Please follow the setup instructions in README.md"
-                )
-            flow = InstalledAppFlow.from_client_secrets_file(str(creds_path), SCOPES)
-            creds = flow.run_local_server(port=0)
-        
-        # Save token for next run
-        with open(token_path, "w") as token_file:
-            token_file.write(creds.to_json())
-    
-    return creds
+# =============================================================================
+# UTILITY FUNCTIONS
+# =============================================================================
 
 
 def get_monday_of_week(date: datetime) -> str:
-    """Get the Monday of the week for a given date in YYYY-MM-DD format."""
+    """Get the Monday of the week for a given date in YYYY-MM-DD format.
+
+    Kept for backward compatibility with tests.
+    """
     from datetime import timedelta
-    # Get the weekday (0 = Monday, 6 = Sunday)
+
     weekday = date.weekday()
-    # Calculate days to subtract to get to Monday
     days_to_monday = weekday
-    # Get the Monday date
     monday = date - timedelta(days=days_to_monday)
     return monday.strftime("%Y-%m-%d")
 
-
-def get_or_create_doc(service, memo_date: datetime) -> str:
-    """Get existing doc ID for the week or create a new document.
-
-    Creates one document per week, named with the Monday date.
-    """
-    data_dir = Path(CONFIG["data_dir"])
-    docs_map_path = data_dir / "docs_by_week.json"
-
-    # First check if user configured a specific doc ID
-    if CONFIG["google_doc_id"]:
-        return CONFIG["google_doc_id"]
-
-    # Get the Monday of this memo's week
-    monday_str = get_monday_of_week(memo_date)
-
-    # Load existing document mappings
-    docs_map = {}
-    if docs_map_path.exists():
-        with open(docs_map_path) as f:
-            docs_map = json.load(f)
-
-    # Check if we already have a doc for this week
-    if monday_str in docs_map:
-        return docs_map[monday_str]
-
-    # Create new document for this week
-    doc_title = f"{monday_str} Voice Memo Transcripts"
-    print(f"  Creating new Google Doc: '{doc_title}'")
-    doc = service.documents().create(body={"title": doc_title}).execute()
-    doc_id = doc["documentId"]
-
-    # Save the mapping
-    docs_map[monday_str] = doc_id
-    with open(docs_map_path, "w") as f:
-        json.dump(docs_map, f, indent=2)
-
-    print(f"  Created doc with ID: {doc_id}")
-    print(f"  URL: https://docs.google.com/document/d/{doc_id}/edit")
-
-    return doc_id
-
-
-def get_existing_tabs(service, doc_id: str) -> dict[str, str]:
-    """Get a mapping of tab titles to tab IDs for the document.
-    
-    Returns: dict mapping tab_title -> tab_id
-    """
-    # Fetch document with tabs included
-    doc = service.documents().get(
-        documentId=doc_id,
-        includeTabsContent=True
-    ).execute()
-    
-    tabs = {}
-    
-    # Process all tabs in the document
-    if "tabs" in doc:
-        for tab in doc["tabs"]:
-            tab_props = tab.get("tabProperties", {})
-            tab_id = tab_props.get("tabId", "")
-            tab_title = tab_props.get("title", "")
-            if tab_id and tab_title:
-                tabs[tab_title] = tab_id
-    
-    return tabs
-
-
-def get_or_create_tab_for_date(service, doc_id: str, date: datetime) -> str:
-    """Get existing tab for the date, or create a new one.
-    
-    Returns: tab_id for the date's tab
-    """
-    tab_title = date.strftime(CONFIG["tab_date_format"])
-    
-    # Check if tab already exists
-    existing_tabs = get_existing_tabs(service, doc_id)
-    
-    if tab_title in existing_tabs:
-        print(f"  Using existing tab: '{tab_title}'")
-        return existing_tabs[tab_title]
-    
-    # Create new tab
-    print(f"  Creating new tab: '{tab_title}'")
-    
-    requests = [
-        {
-            "createTab": {
-                "tabProperties": {
-                    "title": tab_title
-                }
-            }
-        }
-    ]
-    
-    response = service.documents().batchUpdate(
-        documentId=doc_id,
-        body={"requests": requests}
-    ).execute()
-    
-    # Extract the new tab ID from the response
-    new_tab_id = response["replies"][0]["createTab"]["tabProperties"]["tabId"]
-    
-    # Add a header to the new tab
-    header_text = f"📅 {tab_title}\n\nVoice Memo Transcripts\n\n"
-    
-    service.documents().batchUpdate(
-        documentId=doc_id,
-        body={
-            "requests": [
-                {
-                    "insertText": {
-                        "location": {
-                            "index": 1,
-                            "tabId": new_tab_id
-                        },
-                        "text": header_text
-                    }
-                }
-            ]
-        }
-    ).execute()
-    
-    return new_tab_id
-
-
-def get_tab_end_index(service, doc_id: str, tab_id: str) -> int:
-    """Get the end index of content in a specific tab."""
-    doc = service.documents().get(
-        documentId=doc_id,
-        includeTabsContent=True
-    ).execute()
-    
-    # Find the tab and get its content end index
-    if "tabs" in doc:
-        for tab in doc["tabs"]:
-            if tab.get("tabProperties", {}).get("tabId") == tab_id:
-                doc_tab = tab.get("documentTab", {})
-                body = doc_tab.get("body", {})
-                content = body.get("content", [])
-                if content:
-                    return content[-1].get("endIndex", 1) - 1
-    
-    return 1  # Default to beginning if not found
-
-
-def append_to_tab(service, doc_id: str, tab_id: str, memo_name: str, timestamp: str, transcript: str):
-    """Append a transcription to a specific tab in the Google Doc."""
-    # Format the content to append
-    content = f"\n{'─'*50}\n"
-    content += f"📝 {memo_name}\n"
-    content += f"🕐 {timestamp}\n"
-    content += f"{'─'*50}\n\n"
-    content += transcript
-    content += "\n\n"
-    
-    # Get current tab content length
-    end_index = get_tab_end_index(service, doc_id, tab_id)
-    
-    # Insert at end of tab
-    requests = [
-        {
-            "insertText": {
-                "location": {
-                    "index": end_index,
-                    "tabId": tab_id
-                },
-                "text": content
-            }
-        }
-    ]
-    
-    service.documents().batchUpdate(
-        documentId=doc_id,
-        body={"requests": requests}
-    ).execute()
-
-
-# Legacy function for backwards compatibility
-def append_to_doc(service, doc_id: str, memo_name: str, timestamp: str, transcript: str):
-    """Append a transcription to the main tab of the Google Doc (legacy)."""
-    # Format the content to append
-    content = f"\n\n{'='*60}\n"
-    content += f"📝 {memo_name}\n"
-    content += f"🕐 {timestamp}\n"
-    content += f"{'='*60}\n\n"
-    content += transcript
-    content += "\n"
-    
-    # Get current document length
-    doc = service.documents().get(documentId=doc_id).execute()
-    end_index = doc["body"]["content"][-1]["endIndex"] - 1
-    
-    # Insert at end
-    requests = [
-        {
-            "insertText": {
-                "location": {"index": end_index},
-                "text": content
-            }
-        }
-    ]
-    
-    service.documents().batchUpdate(documentId=doc_id, body={"requests": requests}).execute()
 
 # =============================================================================
 # MEMO TRACKING
@@ -552,32 +383,60 @@ def main():
     print("=" * 60)
     print("Voice Memo Transcriber")
     print("=" * 60)
-    
+
+    # Migrate legacy config if needed
+    global CONFIG
+    CONFIG = migrate_legacy_config(CONFIG)
+
     # Ensure data directory exists
     data_dir = Path(CONFIG["data_dir"])
     data_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # Find new memos
     print("\n📂 Scanning for new voice memos...")
     new_memos = find_new_memos()
-    
+
     if not new_memos:
         print("No new memos to transcribe.")
         return
-    
+
     print(f"Found {len(new_memos)} new memo(s)")
 
-    # Set up Google Docs
-    print("\n🔐 Connecting to Google Docs...")
-    creds = get_google_credentials()
-    service = build("docs", "v1", credentials=creds)
+    # Set up destination
+    dest_config = CONFIG["destination"]
+    dest_type = dest_config["type"]
+    dest_settings = dest_config.get(dest_type, {})
+
+    print(f"\n🔐 Initializing {dest_type} destination...")
+    try:
+        destination = create_destination(dest_type, dest_settings, str(data_dir))
+    except ValueError as e:
+        print(f"❌ Invalid destination type: {e}")
+        print("   Check CONFIG['destination']['type'] in transcribe_memos.py")
+        return
+    except Exception as e:
+        print(f"❌ Failed to create destination: {e}")
+        return
+
+    try:
+        destination.initialize()
+    except FileNotFoundError as e:
+        print(f"❌ Missing required file: {e}")
+        print("   Please follow the setup instructions in README.md")
+        return
+    except Exception as e:
+        print(f"❌ Failed to initialize destination: {e}")
+        import traceback
+
+        traceback.print_exc()
+        return
 
     # Process each memo
     processed = get_processed_memos()
     success_count = 0
     failed_count = 0
     failed_memos = []
-    doc_cache = {}  # Cache doc IDs by week to avoid repeated lookups
+    session_cache = {}  # Cache session IDs by date to avoid repeated prep
 
     for filepath, filename, memo_datetime in new_memos:
         timestamp_str = memo_datetime.strftime("%Y-%m-%d %H:%M:%S")
@@ -589,33 +448,37 @@ def main():
             # Check file size - skip empty or very small files
             file_size = os.path.getsize(filepath)
             if file_size < 1000:  # Less than 1KB
-                print(f"   ⚠️  Skipping: File is too small ({file_size} bytes) - likely empty or corrupted")
+                print(
+                    f"   ⚠️  Skipping: File is too small ({file_size} bytes) - likely empty or corrupted"
+                )
                 # Mark as processed so we don't keep trying
                 file_hash = get_file_hash(filepath)
                 processed.add(file_hash)
                 save_processed_memos(processed)
                 continue
 
-            # Get or create document for this memo's week
-            monday_str = get_monday_of_week(memo_datetime)
-            if monday_str not in doc_cache:
-                doc_id = get_or_create_doc(service, memo_datetime)
-                doc_cache[monday_str] = doc_id
-                print(f"  Using doc: https://docs.google.com/document/d/{doc_id}/edit")
+            # Prepare destination for this memo
+            # Use destination-specific cache key (handles daily vs weekly organization)
+            cache_key = destination.get_cache_key(memo_datetime)
+            if cache_key not in session_cache:
+                session_id = destination.prepare_for_memo(memo_datetime)
+                session_cache[cache_key] = session_id
             else:
-                doc_id = doc_cache[monday_str]
+                session_id = session_cache[cache_key]
 
             # Transcribe
             print(f"   Transcribing with {CONFIG['backend']} backend...")
             transcript = transcribe(filepath)
             print(f"   ✓ Transcription complete")
 
-            # Append to document
-            print(f"   Appending to document...")
-            append_to_doc(service, doc_id, filename, timestamp_str, transcript)
-            print(f"   ✓ Added to document")
+            # Append to destination
+            print(f"   Appending to destination...")
+            destination.append_transcript(
+                session_id, filename, timestamp_str, transcript, memo_datetime, filepath
+            )
+            print(f"   ✓ Added to destination")
 
-            # Mark as processed ONLY if both transcription and document append succeeded
+            # Mark as processed ONLY if both transcription and destination append succeeded
             file_hash = get_file_hash(filepath)
             processed.add(file_hash)
             save_processed_memos(processed)
@@ -641,6 +504,7 @@ def main():
                 print(f"   ❌ Error: {e}")
                 print(f"   ⚠️  Memo NOT marked as processed - will retry on next run")
                 import traceback
+
                 traceback.print_exc()
             continue
 
@@ -650,8 +514,12 @@ def main():
             print(f"   ❌ Error: {e}")
             print(f"   ⚠️  Memo NOT marked as processed - will retry on next run")
             import traceback
+
             traceback.print_exc()
             continue
+
+    # Cleanup and summary
+    destination.cleanup()
 
     print("\n" + "=" * 60)
     print("✨ Processing complete!")
@@ -661,13 +529,6 @@ def main():
         print(f"   Failed memos will be retried on next run:")
         for memo in failed_memos:
             print(f"     - {memo}")
-
-    if doc_cache:
-        print(f"\n📄 Documents created/updated ({len(doc_cache)} total):")
-        for monday_str in sorted(doc_cache.keys()):
-            doc_id = doc_cache[monday_str]
-            print(f"   Week of {monday_str}:")
-            print(f"     https://docs.google.com/document/d/{doc_id}/edit")
     print("=" * 60)
 
 
