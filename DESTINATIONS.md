@@ -25,17 +25,36 @@ CONFIG = {
         "type": "google_docs",
 
         "google_docs": {
-            # Leave empty to create weekly docs automatically, or specify a doc ID
-            "doc_id": "",
+            # Document grouping strategy
+            "doc_grouping": "monthly",  # Options: weekly, monthly, quarterly, yearly, tag, single
 
-            # Title for new documents (used when doc_id is empty)
-            "doc_title": "Voice Memo Transcripts",
+            # Tab grouping strategy
+            "tab_grouping": "daily",  # Options: daily, weekly, time-of-day, duration, tag, none
 
-            # Date format for tab titles (%B = month name, %d = day, %Y = year)
-            "tab_date_format": "%B %d, %Y",
+            # Optional: Custom date format for daily/weekly tabs
+            "tab_date_format": "%B %d, %Y",  # e.g., "February 01, 2026"
 
-            # Create one doc per week (True) or use single doc (False)
-            "use_weekly_docs": True,
+            # Optional: Time ranges for time-of-day grouping
+            "tab_time_ranges": {
+                "Morning": (6, 12),
+                "Afternoon": (12, 18),
+                "Evening": (18, 24),
+                "Night": (0, 6)
+            },
+
+            # Optional: Duration ranges for duration-based grouping (in seconds)
+            "tab_duration_ranges": {
+                "Quick Notes": (0, 120),
+                "Standard": (120, 600),
+                "Extended": (600, float('inf'))
+            },
+
+            # Optional: Tag pattern for tag-based grouping
+            "doc_tag_pattern": r"#(\w+)",  # Matches hashtags like #project-alpha
+
+            # Legacy options (still supported)
+            # "doc_id": "",  # Specify a single doc ID (overrides grouping)
+            # "use_weekly_docs": True,  # Auto-migrates to doc_grouping
         },
     },
 }
@@ -43,22 +62,105 @@ CONFIG = {
 
 ### Features
 
-- **Weekly Organization**: Creates one document per week (Monday-Sunday)
-- **Daily Tabs**: One tab per day within each document
+- **Flexible Document Grouping**: 6 grouping strategies for documents
+  - Weekly (Monday-based), Monthly, Quarterly, Yearly, Tag-based, or Single document
+- **Flexible Tab Grouping**: 6 grouping strategies for tabs within documents
+  - Daily, Weekly, Time-of-day, Duration-based, Tag-based, or No tabs
+- **36 Total Combinations**: Mix and match doc and tab strategies
+- **Metadata-Based Grouping**: Uses audio file title and duration for smart organization
+- **Tag Support**: Organize by hashtags in memo titles (e.g., `#project-alpha`)
 - **Automatic Headers**: Adds formatted headers with date and emoji
 - **URL Output**: Prints direct link to each document
+- **Backward Compatible**: Automatically migrates old configurations
 
-### Example Output
+### Grouping Examples
 
+**Example 1: Monthly docs with daily tabs** (recommended for most users)
+```python
+"doc_grouping": "monthly",
+"tab_grouping": "daily"
 ```
-Week of 2025-01-27 Voice Memo Transcripts
-├── Tab: January 27, 2025
-│   ├── 📝 Meeting Notes
-│   ├── 🕐 2025-01-27 09:15:32
-│   └── Transcript...
-└── Tab: January 28, 2025
-    └── ...
+Output:
 ```
+📄 2026-02 Voice Memo Transcripts
+  ├─ 📑 February 01, 2026
+  ├─ 📑 February 02, 2026
+  └─ 📑 February 03, 2026
+```
+
+**Example 2: Quarterly docs with time-of-day tabs** (context-based organization)
+```python
+"doc_grouping": "quarterly",
+"tab_grouping": "time-of-day",
+"tab_time_ranges": {
+    "Morning": (6, 12),
+    "Afternoon": (12, 18),
+    "Evening": (18, 24),
+    "Night": (0, 6)
+}
+```
+Output:
+```
+📄 2026-Q1 Voice Memo Transcripts
+  ├─ 📑 Morning (6:00-12:00)
+  ├─ 📑 Afternoon (12:00-18:00)
+  ├─ 📑 Evening (18:00-24:00)
+  └─ 📑 Night (0:00-6:00)
+```
+
+**Example 3: Tag-based docs with daily tabs** (project organization)
+```python
+"doc_grouping": "tag",
+"doc_tag_pattern": r"#(\w+)",
+"tab_grouping": "daily"
+```
+With memos titled:
+- "Meeting notes #project-alpha"
+- "Ideas for blog #content"
+
+Output:
+```
+📄 #project-alpha Voice Memo Transcripts
+  ├─ 📑 February 01
+  └─ 📑 February 03
+
+📄 #content Voice Memo Transcripts
+  └─ 📑 February 02
+
+📄 Untagged Voice Memo Transcripts
+  └─ 📑 February 01
+```
+
+**Example 4: Yearly docs with duration tabs** (archive by length)
+```python
+"doc_grouping": "yearly",
+"tab_grouping": "duration",
+"tab_duration_ranges": {
+    "Quick Notes": (0, 120),
+    "Standard": (120, 600),
+    "Extended": (600, float('inf'))
+}
+```
+Output:
+```
+📄 2026 Voice Memo Transcripts
+  ├─ 📑 Quick Notes
+  ├─ 📑 Standard
+  └─ 📑 Extended
+```
+
+**Example 5: Single doc with no tabs** (continuous document)
+```python
+"doc_grouping": "single",
+"tab_grouping": "none"
+```
+Output:
+```
+📄 Voice Memo Transcripts
+  (All memos in one continuous document)
+```
+
+See [docs/google-docs-grouping.md](docs/google-docs-grouping.md) for complete reference with all 36 combinations.
 
 ## Obsidian Destination
 
