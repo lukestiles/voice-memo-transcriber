@@ -91,6 +91,7 @@ class TestFindNewMemos:
 class TestEndToEndWorkflow:
     """End-to-end workflow tests."""
 
+    @pytest.mark.skip(reason="Deprecated - replaced by tests/test_destination_integration.py")
     @patch('transcribe_memos.OpenAI')
     @patch('transcribe_memos.build')
     @patch('transcribe_memos.get_google_credentials')
@@ -191,6 +192,7 @@ class TestEndToEndWorkflow:
 class TestErrorRecovery:
     """Test error recovery scenarios."""
 
+    @pytest.mark.skip(reason="Deprecated - replaced by tests/test_destination_integration.py")
     @patch('transcribe_memos.OpenAI')
     @patch('transcribe_memos.validate_audio_file')
     def test_corrupted_file_handling(self, mock_validate, mock_openai, corrupted_audio_file, monkeypatch, mock_config):
