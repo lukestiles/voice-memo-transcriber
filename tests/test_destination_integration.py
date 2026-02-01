@@ -102,7 +102,7 @@ class TestGoogleDocsWorkflow:
 
         mock_update = MagicMock()
         mock_update.execute.return_value = {
-            "replies": [{"createTab": {"tabProperties": {"tabId": "new-tab"}}}]
+            "replies": [{"addDocumentTab": {"tabId": "new-tab"}}]
         }
         mock_service.documents().batchUpdate.return_value = mock_update
 

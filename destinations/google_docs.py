@@ -282,14 +282,14 @@ class GoogleDocsDestination(TranscriptDestination):
         # Create new tab
         print(f"  Creating new tab: '{tab_title}'")
 
-        requests = [{"createTab": {"tabProperties": {"title": tab_title}}}]
+        requests = [{"addDocumentTab": {"tabProperties": {"title": tab_title}}}]
 
         response = self.service.documents().batchUpdate(
             documentId=doc_id, body={"requests": requests}
         ).execute()
 
         # Extract the new tab ID from the response
-        new_tab_id = response["replies"][0]["createTab"]["tabProperties"]["tabId"]
+        new_tab_id = response["replies"][0]["addDocumentTab"]["tabId"]
 
         # Add a header to the new tab
         header_text = f"📅 {tab_title}\n\nVoice Memo Transcripts\n\n"

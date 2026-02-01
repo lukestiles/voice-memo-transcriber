@@ -62,10 +62,8 @@ def mock_service():
     mock_update.execute.return_value = {
         "replies": [
             {
-                "createTab": {
-                    "tabProperties": {
-                        "tabId": "new-tab-id"
-                    }
+                "addDocumentTab": {
+                    "tabId": "new-tab-id"
                 }
             }
         ]
